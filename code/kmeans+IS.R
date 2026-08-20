@@ -8,7 +8,7 @@ library(clue)       # Linear assignment problem (solve_LSAP)
 ### ============================================================
 ### Global parameters
 ### ============================================================
-p = 15              # Dimension of each observation
+p = 15              # Number of variables
 KC = 7              # Number of clusters
 jj = 6              # Simulation / dataset index
 n = 250             # Number of observations in the current dataset
@@ -21,8 +21,8 @@ n = 250             # Number of observations in the current dataset
 # assignments. ARI measures the agreement between two partitions
 # while correcting for agreement that could occur by chance.
 #
-# x: clustering assignment vector
-# y: reference / true clustering assignment vector
+# x: estimated cluster partition
+# y: true cluster partition
 #
 # The function is equivalent to the standard ARI definition based
 # on the contingency table between x and y.
@@ -34,7 +34,7 @@ adjustedRandIndex = function(x, y)
   if (length(x) != length(y))
     stop("arguments must be vectors of the same length")
   
-  # Contingency table between the two clustering assignments
+  # Contingency table between the two cluster partitions
   tab <- table(x, y)
   
   # If both partitions contain only one cluster, they are identical
@@ -77,7 +77,7 @@ adjustedRandIndex = function(x, y)
 #   Xlg : observations
 #   Clg : true cluster labels
 #   kk  : current dataset / replicate index
-#   beta0, mu1, ..., mu7 : true parameter values
+#   mu1, ..., mu7 : true parameter values
 load(
   paste(
     "/Users/kendanny/Desktop/R scripts/sep/kotzp15/data_",
@@ -86,6 +86,8 @@ load(
     sep = ""
   )
 )
+
+kk=1
 
 # Extract the n observations corresponding to the current replicate.
 X = Xlg[((kk - 1) * n + 1):(kk * n),]
@@ -106,7 +108,7 @@ kx = kmeans(
   iter.max = 100
 )
 
-# Estimated cluster labels from K-means
+# Estimated cluster partition from K-means
 cx = kx$cluster
 
 # Store the clustering result
@@ -117,7 +119,6 @@ Cle = c(Cle, cx)
 ### Clustering performance: Adjusted Rand Index
 ### ============================================================
 
-# Compare the estimated clustering labels with the true labels.
 ri = adjustedRandIndex(
   cx,
   Clg[((kk - 1) * n + 1):(kk * n)]
@@ -128,7 +129,7 @@ rii = c(rii, ri)
 
 
 ### ============================================================
-### Estimate cluster means
+### Estimate cluster-specific mean vectors
 ### ============================================================
 
 # mu is a p x KC matrix.
@@ -138,7 +139,7 @@ mu = matrix(0, p, KC)
 for (i in 1:KC) {
   
   # If the cluster contains only one observation, directly use
-  # that observation as the cluster mean.
+  # that observation as the cluster-specific mean vector.
   #
   # This special case is needed because X[cx == i, ] may be
   # returned as a vector rather than a matrix when the cluster
@@ -160,18 +161,13 @@ for (i in 1:KC) {
 ### Mean estimation error
 ### ============================================================
 
-# The cluster labels produced by K-means are arbitrary.
-# For example, estimated cluster 1 does not necessarily correspond
-# to true cluster 1. Therefore, we first solve a linear assignment
-# problem to find the optimal matching between estimated and true
-# cluster means.
 
 # True cluster means
 mu_true = cbind(
   mu1, mu2, mu3, mu4, mu5, mu6, mu7
 )
 
-# Estimated cluster means
+# Estimated cluster-specific mean vectors
 mu_est = mu[, 1:7]
 
 # cost[i, j] = squared Euclidean distance between
@@ -295,7 +291,7 @@ cx2 = rep(0, n)
 #   1. Compute the Mahalanobis distance from each observation
 #      to each cluster mean.
 #   2. Assign each observation to the nearest cluster.
-#   3. Re-estimate cluster means.
+#   3. Re-estimate cluster-specific mean vectors.
 #   4. Re-estimate the common covariance matrix.
 #
 # The loop terminates when the cluster assignments no longer change.
@@ -467,7 +463,7 @@ min_sse = sum(
   cost[cbind(1:KC, assignment)]
 )
 
-# RMSE of the estimated cluster means.
+# RMSE of the estimated cluster-specific mean vectors.
 MSEgwhe = c(
   MSEgwhe,
   sqrt(min_sse / (KC * p))
