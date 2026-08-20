@@ -101,21 +101,19 @@ load(paste("data_",v,".RData",sep=""))
 ## Initialize performance and result storage
 ## ============================================================
 
-ril=c()       # Clustering agreement / evaluation measure
-msel=c()      # Mean squared error of beta
 S2=c()        # Final quadratic loss
 SS=c()        # Objective function / loss values
 
-cxx=c()       # Estimated cluster assignments
-betat=c()     # Estimated observation-specific beta
+cxx=c()       # Estimated cluster partition
+betat=c()     # Estimated subject-specific beta
 gammat=c()    # Estimated cluster centers
 
 
 ## ============================================================
-## Extract initial cluster assignment
+## Extract initial cluster partition
 ## ============================================================
 
-# Clek contains the clustering labels.
+# Clek contains the cluster partition.
 # Extract the labels corresponding to the j-th dataset.
 
 cxt=Clek[((j-1)*n+1):(j*n)]
@@ -238,9 +236,6 @@ if(KCn<KC){
 
 X=Xlg[((j-1)*n+1):(j*n),]
 
-# Whitening transformation using Csig2.
-# After transformation, the estimated covariance matrix is
-# approximately the identity matrix.
 
 X=X%*%solve(sqrtm(Csig2))
 
@@ -255,7 +250,7 @@ Csig=diag(p)
 beta=gamma=c()
 
 
-# Observation-specific initial beta.
+# subject-specific initial beta.
 for(i in 1:n)
   beta=c(
     beta,
@@ -306,7 +301,7 @@ gamma2=do.call(
 
 # Calculate the initial quadratic loss:
 #
-#   (1 / 2n) * || Sigma^{-1/2} (X - beta) ||_F^2
+#   (1 / 2n) * || Sigma^{-1/2} (X - beta) ||_2^2
 #
 # Since Csig = I after standardization, this term represents
 # the within-cluster fitting error.
@@ -323,16 +318,7 @@ SS=c(SS,Sn)
 ## Store initial model performance
 ## ============================================================
 
-# Initial clustering evaluation.
-ril=c(ril,rii2[j])
-
-# Initial mean squared error of beta.
-msel=c(
-  msel,
-  sum((beta-beta0)^2)/(n*p)
-)
-
-# Store initial cluster assignment.
+# Store initial cluster partition.
 cxx=cbind(cxx,cxt)
 
 # Store initial beta.
@@ -364,24 +350,6 @@ if(KCn==KC)
 # |beta_i - gamma_k|.
 
 lam_can=abs(beta_ini-gamma2)
-
-
-# Alternative construction of lam_can based on the total
-# L1 distance between beta_i and gamma_k.
-# This code is currently commented out.
-#
-# lam_can=c()
-# for(i in 1:n)
-#   for(il in 1:KCn)
-#     lam_can=c(
-#       lam_can,
-#       sum(
-#         abs(
-#           beta_ini[((i-1)*p+1):(i*p)]-
-#           gamma[,il]
-#         )
-#       )
-#     )
 
 
 # Lower bound of lambda.
@@ -419,11 +387,9 @@ for(lambda in seq(lam_1,lam_J,length=10)/n){
   kappa=1/n
   
   # Standardized data.
-  X=
-    Xlg[((j-1)*n+1):(j*n),]%
-  %solve(sqrtm(Csig2))
+  X=Xlg[((j-1)*n+1):(j*n),]%*%solve(sqrtm(Csig2))
   
-  # Initialize dual variables for KCn clusters.
+  # Initialize nu's for KCn clusters.
   nu=matrix(0,n*p,KCn)
   
   
@@ -464,7 +430,7 @@ for(lambda in seq(lam_1,lam_J,length=10)/n){
   eta=beta-gamma2
   
   
-  # Calculate L1 distances between every observation-specific
+  # Calculate L1 distances between every subject-specific
   # beta_i and every cluster center gamma_k.
   
   A=Cm%*%abs(beta-gamma2)
@@ -507,7 +473,7 @@ for(lambda in seq(lam_1,lam_J,length=10)/n){
   # Store objective values from each iteration.
   SSS=c()
   
-  # Store cluster assignments from each iteration.
+  # Store cluster partitions from each iteration.
   cxt1=c()
   
   # Store quadratic loss from each iteration.
@@ -530,7 +496,7 @@ for(lambda in seq(lam_1,lam_J,length=10)/n){
     
     
     ## --------------------------------------------------------
-    ## Initialize dual variables
+    ## Initialize nu's
     ## --------------------------------------------------------
     
     nu=matrix(0,n*p,KCn)
@@ -595,7 +561,6 @@ for(lambda in seq(lam_1,lam_J,length=10)/n){
     ## Update beta
     ## ========================================================
     
-    # Calculate the data-dependent component.
     X2s=solve(Csig)%*%t(X)
     X2s=X2s[1:(n*p)]
     
@@ -629,9 +594,6 @@ for(lambda in seq(lam_1,lam_J,length=10)/n){
     
     
     # eta update for every cluster and every observation.
-    #
-    # ST() performs the soft-thresholding operation that
-    # introduces the L1-type sparsity / fusion structure.
     
     for(i in 1:KCn)
       for(j2 in 1:n)
@@ -648,7 +610,7 @@ for(lambda in seq(lam_1,lam_J,length=10)/n){
     
     
     ## ========================================================
-    ## Update dual variables
+    ## Update nu's
     ## ========================================================
     
     # ADMM dual-variable update.
@@ -682,7 +644,7 @@ for(lambda in seq(lam_1,lam_J,length=10)/n){
       
       
       ## ------------------------------------------------------
-      ## Update current beta, eta and dual variables
+      ## Update current beta, eta and nu's
       ## ------------------------------------------------------
       
       beta=betan[1:(n*p)]
@@ -740,7 +702,7 @@ for(lambda in seq(lam_1,lam_J,length=10)/n){
       
       
       ## ------------------------------------------------------
-      ## Update dual variables
+      ## Update nu's
       ## ------------------------------------------------------
       
       for(i in 1:KCn)
@@ -1029,7 +991,7 @@ for(lambda in seq(lam_1,lam_J,length=10)/n){
     )
     
     
-    # Store cluster assignments from the current iteration.
+    # Store cluster partitions from the current iteration.
     cxt1=cbind(cxt1,cxt)
     
     
@@ -1046,7 +1008,7 @@ for(lambda in seq(lam_1,lam_J,length=10)/n){
   ## Extract the final result for the current lambda
   ## ==========================================================
   
-  # Final cluster assignment obtained at the last optimization
+  # Final cluster partition obtained at the last optimization
   # iteration.
   cxtn=cxt1[,l1c]
   
@@ -1056,12 +1018,7 @@ for(lambda in seq(lam_1,lam_J,length=10)/n){
   
   
   # Extract the final cluster centers.
-  gamma=
-    gammab[
-      ,
-      ((l1c-1)*KCn+1):
-        (l1c*KCn)
-    ]
+  gamma=gammab[,((l1c-1)*KCn+1):(l1c*KCn)]
   
   
   ## ==========================================================
@@ -1073,7 +1030,7 @@ for(lambda in seq(lam_1,lam_J,length=10)/n){
   beta=gamma=c()
   
   
-  # Final observation-specific beta:
+  # Final subject-specific beta:
   # each observation is assigned the mean of its final cluster.
   
   for(i in 1:n)
@@ -1130,26 +1087,13 @@ for(lambda in seq(lam_1,lam_J,length=10)/n){
   }
   
   
-  ## ==========================================================
-  ## Display result for the current lambda
-  ## ==========================================================
-  
-  # Print:
-  #   lambda  : current tuning parameter
-  #   SS      : final within-cluster quadratic loss
-  #   clusters: number of observations in each cluster
-  
-  cat(
-    "lambda =", lambda,
-    " SS =", SS2,
-    " clusters =", paste(table(cxtn), collapse=","),
-    "\n"
-  )
   
   
   ## ==========================================================
   ## Store performance measures for the current lambda
   ## ==========================================================
+  
+  SS=c(SS,SS2)
   
   # Store the quadratic loss.
   S2=c(
@@ -1170,7 +1114,7 @@ for(lambda in seq(lam_1,lam_J,length=10)/n){
   )
   
   
-  # Store cluster assignments.
+  # Store cluster partitions.
   cxx=cbind(cxx,cxtn)
   
   
@@ -1190,28 +1134,15 @@ for(lambda in seq(lam_1,lam_J,length=10)/n){
 # Select the model corresponding to the smallest objective
 # function value stored in SS.
 
-cxp=
-  cxx[
-    ,
-    which.min(SS)
-  ]
+cxp=cxx[,which.min(SS)]
 
 
 # Extract the corresponding beta estimate.
-betap=
-  betat[
-    ,
-    which.min(SS)
-  ]
+betap=betat[,which.min(SS)]
 
 
 # Extract the corresponding cluster centers.
-gammap=
-  gammat[
-    ,
-    ((which.min(SS)-1)*KCn+1):
-      (which.min(SS)*KCn)
-  ]
+gammap=gammat[,((which.min(SS)-1)*KCn+1):(which.min(SS)*KCn)]
 
 
 ## ============================================================
@@ -1225,27 +1156,21 @@ gammap=
 # Therefore, transform the estimated gamma back to the
 # original data scale by multiplying sqrtm(Csig2).
 
-gammap=
-  sqrtm(Csig2)%*%
-  gammap
+gammap=sqrtm(Csig2)%*%gammap
 
 
 ## ============================================================
 ## Restore original data matrix
 ## ============================================================
 
-X=
-  Xlg[
-    ((j-1)*n+1):(j*n),
-    :
-  ]
+X=Xlg[((j-1)*n+1):(j*n),]
 
 
 ## ============================================================
 ## Store final results
 ## ============================================================
 
-# Store the selected cluster assignment.
+# Store the selected cluster partition.
 c_1210=
   rbind(
     c_1210,
@@ -1260,3 +1185,5 @@ gamma_1210=
     gamma_1210,
     gammap
   )
+
+save.image(paste("hs_",KC,"_",KCn,"_",v,"_",n,"_",j,".RData",sep=""),version = 2)

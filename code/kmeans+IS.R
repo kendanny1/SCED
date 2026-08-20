@@ -74,10 +74,10 @@ adjustedRandIndex = function(x, y)
 
 # Load the simulated dataset corresponding to simulation index jj.
 # The file is expected to contain:
-#   Xlg : observations
-#   Clg : true cluster labels
+#   Xlg : data matrix
+#   Clg : realized cluster partition
 #   kk  : current dataset / replicate index
-#   mu1, ..., mu7 : true parameter values
+#   mu1, ..., mu7 : true cluster-level mean vectors
 load(
   paste(
     "/Users/kendanny/Desktop/R scripts/sep/kotzp15/data_",
@@ -191,7 +191,7 @@ min_sse = sum(
   cost[cbind(1:KC, assignment)]
 )
 
-# Root mean squared error of the estimated cluster means.
+# Root squared error of the estimated cluster means.
 #
 # Divide by KC * p because there are KC mean vectors,
 # each containing p parameters.
@@ -228,8 +228,7 @@ for (i in 1:KC) {
   # Again, handle the one-observation case separately because
   # R drops dimensions when subsetting a matrix to one row.
   if (length(X[cx == i, ]) == p) {
-    
-    # Outer product of the centered observation
+
     Csig =
       Csig +
       outer(
@@ -240,7 +239,6 @@ for (i in 1:KC) {
     
   } else {
     
-    # Cross-product of the centered observations
     Csig =
       Csig +
       (t(X[cx == i, ]) - mu[, i]) %*%
@@ -499,3 +497,6 @@ MSEhesig = c(
 ### ============================================================
 
 rii2 = c(rii2, ri2)
+
+save.image(paste("/Users/kendanny/Desktop/R scripts/sep/kotzp15/km_",KC,"_",jj,"_",n,".RData",sep=""),version = 2)
+
